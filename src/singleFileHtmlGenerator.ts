@@ -1,0 +1,871 @@
+/**
+ * @license
+ * SPDX-License-Identifier: Apache-2.0
+ */
+
+export function getSingleFileHtmlContent(gasUrl: string): string {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>모던 스마트 도서관 관리 시스템</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide Icons CDN -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;500;600;700;800&display=swap');
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
+    .modal-backdrop {
+      background-color: rgba(15, 23, 42, 0.6);
+      backdrop-filter: blur(4px);
+    }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 min-h-screen flex flex-col">
+
+  <!-- 상단 네비게이션 헤더 -->
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-30 shadow-xs">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600 text-white flex items-center justify-center shadow-md shadow-indigo-100">
+          <i data-lucide="book-marked" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h1 class="text-lg font-bold text-slate-900 leading-tight">스마트 도서관 관리</h1>
+          <p class="text-xs text-slate-500">Google Sheets & GAS 연동 시스템</p>
+        </div>
+      </div>
+
+      <!-- 액션 버튼들 -->
+      <div class="flex items-center gap-2">
+        <button id="btnRefresh" onclick="fetchData()" class="p-2 text-slate-600 hover:text-indigo-600 hover:bg-slate-100 rounded-lg transition-colors" title="새로고침">
+          <i data-lucide="rotate-cw" class="w-5 h-5" id="refreshIcon"></i>
+        </button>
+        <button onclick="openModal('logsModal')" class="hidden sm:inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors">
+          <i data-lucide="history" class="w-4 h-4 text-slate-500"></i>
+          이력 조회
+        </button>
+        <button onclick="openModal('addModal')" class="inline-flex items-center gap-1.5 px-4 py-2 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg shadow-sm hover:shadow transition-all">
+          <i data-lucide="plus" class="w-4 h-4"></i>
+          새 도서 등록
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- 메인 컨텐츠 영역 -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 flex-1 w-full space-y-6">
+
+    <!-- 시스템 알림/상태 바 -->
+    <div id="statusBanner" class="hidden rounded-xl p-4 bg-amber-50 border border-amber-200 text-amber-800 flex items-start justify-between gap-3 text-sm">
+      <div class="flex items-start gap-2.5">
+        <i data-lucide="alert-circle" class="w-5 h-5 text-amber-600 shrink-0 mt-0.5"></i>
+        <div>
+          <span class="font-semibold" id="statusTitle">안내</span>:
+          <span id="statusMessage">GAS 웹 앱 배포 권한을 확인해주세요.</span>
+        </div>
+      </div>
+      <button onclick="document.getElementById('statusBanner').classList.add('hidden')" class="text-amber-600 hover:text-amber-800">
+        <i data-lucide="x" class="w-4 h-4"></i>
+      </button>
+    </div>
+
+    <!-- 대시보드 통계 카드 -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
+        <div class="p-3 bg-blue-50 text-blue-600 rounded-lg">
+          <i data-lucide="books" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <p class="text-xs text-slate-500 font-medium">전체 보유 도서</p>
+          <p class="text-xl font-bold text-slate-800" id="statTotal">0권</p>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
+        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg">
+          <i data-lucide="check-circle-2" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <p class="text-xs text-slate-500 font-medium">대출 가능</p>
+          <p class="text-xl font-bold text-emerald-600" id="statAvailable">0권</p>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
+        <div class="p-3 bg-amber-50 text-amber-600 rounded-lg">
+          <i data-lucide="clock" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <p class="text-xs text-slate-500 font-medium">대출 중</p>
+          <p class="text-xl font-bold text-amber-600" id="statBorrowed">0권</p>
+        </div>
+      </div>
+
+      <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex items-center gap-3">
+        <div class="p-3 bg-indigo-50 text-indigo-600 rounded-lg">
+          <i data-lucide="users" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <p class="text-xs text-slate-500 font-medium">등록 회원</p>
+          <p class="text-xl font-bold text-indigo-600" id="statMembers">0명</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- 검색 및 필터 컨트롤 바 -->
+    <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-xs space-y-4">
+      <div class="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+        <!-- 검색창 -->
+        <div class="relative flex-1">
+          <i data-lucide="search" class="w-5 h-5 absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400"></i>
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="도서 제목, 저자, 도서 ID로 검색..."
+            oninput="handleSearch()"
+            class="w-full pl-10 pr-4 py-2.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
+          />
+        </div>
+
+        <!-- 뷰 모드 및 상태 필터 -->
+        <div class="flex items-center gap-2 shrink-0">
+          <select id="statusFilter" onchange="renderBooks()" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+            <option value="all">모든 상태</option>
+            <option value="available">대출 가능만</option>
+            <option value="borrowed">대출 중만</option>
+          </select>
+
+          <div class="border border-slate-200 rounded-lg p-0.5 flex bg-slate-50">
+            <button id="viewGridBtn" onclick="setViewMode('grid')" class="p-1.5 rounded text-indigo-600 bg-white shadow-xs" title="카드 뷰">
+              <i data-lucide="layout-grid" class="w-4 h-4"></i>
+            </button>
+            <button id="viewTableBtn" onclick="setViewMode('table')" class="p-1.5 rounded text-slate-500 hover:text-slate-800" title="테이블 뷰">
+              <i data-lucide="list" class="w-4 h-4"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 카테고리 칩 목록 -->
+      <div class="flex items-center gap-1.5 overflow-x-auto pb-1 text-xs" id="categoryChips">
+        <!-- 카테고리 칩들이 JS로 렌더링됩니다 -->
+      </div>
+    </div>
+
+    <!-- 로딩 인디케이터 -->
+    <div id="loadingBox" class="py-16 flex flex-col items-center justify-center space-y-3">
+      <div class="w-10 h-10 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"></div>
+      <p class="text-sm text-slate-500 font-medium">도서 목록을 불러오는 중입니다...</p>
+    </div>
+
+    <!-- 데이터 없음 화면 -->
+    <div id="emptyBox" class="hidden py-16 bg-white rounded-xl border border-dashed border-slate-300 text-center space-y-3">
+      <div class="w-14 h-14 bg-slate-100 rounded-full flex items-center justify-center mx-auto text-slate-400">
+        <i data-lucide="book-x" class="w-7 h-7"></i>
+      </div>
+      <h3 class="text-base font-semibold text-slate-700">검색된 도서가 없습니다</h3>
+      <p class="text-xs text-slate-500 max-w-sm mx-auto">검색어나 카테고리 필터를 변경하거나 우측 상단 '새 도서 등록'으로 도서를 추가해 보세요.</p>
+    </div>
+
+    <!-- 도서 목록: 그리드 카드 뷰 -->
+    <div id="booksGrid" class="hidden grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      <!-- 도서 카드가 동적으로 주입됩니다 -->
+    </div>
+
+    <!-- 도서 목록: 테이블 뷰 -->
+    <div id="booksTableWrapper" class="hidden bg-white rounded-xl border border-slate-200 overflow-hidden shadow-xs">
+      <div class="overflow-x-auto">
+        <table class="w-full text-left text-sm">
+          <thead class="bg-slate-50 text-slate-500 border-b border-slate-200 text-xs font-semibold">
+            <tr>
+              <th class="py-3 px-4">도서 ID</th>
+              <th class="py-3 px-4">제목</th>
+              <th class="py-3 px-4">저자</th>
+              <th class="py-3 px-4">카테고리</th>
+              <th class="py-3 px-4">대출 상태</th>
+              <th class="py-3 px-4">대출자</th>
+              <th class="py-3 px-4">반납예정일</th>
+              <th class="py-3 px-4 text-right">관리</th>
+            </tr>
+          </thead>
+          <tbody id="booksTableBody" class="divide-y divide-slate-100">
+            <!-- 행들이 동적으로 주입됩니다 -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+
+  <!-- 모달: 신규 도서 등록 -->
+  <div id="addModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="modal-backdrop fixed inset-0" onclick="closeModal('addModal')"></div>
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative z-10 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2 text-indigo-600">
+          <i data-lucide="plus-circle" class="w-5 h-5"></i>
+          <h3 class="font-bold text-slate-800 text-lg">새 도서 등록</h3>
+        </div>
+        <button onclick="closeModal('addModal')" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <form id="addBookForm" onsubmit="submitAddBook(event)" class="space-y-3.5 text-sm">
+        <div>
+          <label class="block font-medium text-slate-700 mb-1">도서 제목 <span class="text-rose-500">*</span></label>
+          <input
+            type="text"
+            id="newTitle"
+            required
+            placeholder="예: 클린 코드"
+            class="w-full px-3.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label class="block font-medium text-slate-700 mb-1">저자 <span class="text-rose-500">*</span></label>
+          <input
+            type="text"
+            id="newAuthor"
+            required
+            placeholder="예: 로버트 C. 마틴"
+            class="w-full px-3.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+          />
+        </div>
+        <div>
+          <label class="block font-medium text-slate-700 mb-1">카테고리 <span class="text-rose-500">*</span></label>
+          <select
+            id="newCategory"
+            required
+            class="w-full px-3.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none bg-white"
+          >
+            <option value="기술/IT">기술/IT</option>
+            <option value="문학/소설">문학/소설</option>
+            <option value="인문/역사">인문/역사</option>
+            <option value="경제/경영">경제/경영</option>
+            <option value="자연과학">자연과학</option>
+            <option value="자기계발">자기계발</option>
+            <option value="예술/문화">예술/문화</option>
+            <option value="기타">기타</option>
+          </select>
+        </div>
+
+        <div class="pt-3 flex gap-2 justify-end">
+          <button type="button" onclick="closeModal('addModal')" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">취소</button>
+          <button type="submit" id="addSubmitBtn" class="px-5 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 flex items-center gap-1.5 shadow-sm">
+            <span>등록하기</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 모달: 도서 대출 -->
+  <div id="borrowModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="modal-backdrop fixed inset-0" onclick="closeModal('borrowModal')"></div>
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl relative z-10 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2 text-indigo-600">
+          <i data-lucide="book-open" class="w-5 h-5"></i>
+          <h3 class="font-bold text-slate-800 text-lg">도서 대출 신청</h3>
+        </div>
+        <button onclick="closeModal('borrowModal')" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="p-3 bg-slate-50 rounded-lg border border-slate-200 text-xs space-y-1">
+        <p class="text-slate-500">대출 대상 도서</p>
+        <p class="text-sm font-bold text-slate-800" id="borrowModalBookTitle">-</p>
+        <p class="text-slate-600" id="borrowModalBookAuthor">-</p>
+      </div>
+
+      <form id="borrowForm" onsubmit="submitBorrow(event)" class="space-y-3.5 text-sm">
+        <input type="hidden" id="borrowBookId" />
+        <div>
+          <label class="block font-medium text-slate-700 mb-1">대출자 이름 <span class="text-rose-500">*</span></label>
+          <input
+            type="text"
+            id="borrowMemberName"
+            list="memberSuggestions"
+            required
+            placeholder="대출자 성명을 입력하세요 (예: 홍길동)"
+            class="w-full px-3.5 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:outline-none"
+          />
+          <datalist id="memberSuggestions"></datalist>
+          <p class="text-xs text-slate-500 mt-1">회원 목록에서 선택하거나 직접 입력하세요.</p>
+        </div>
+
+        <div class="p-3 bg-indigo-50/50 rounded-lg border border-indigo-100 text-xs text-indigo-800 flex items-center gap-2">
+          <i data-lucide="calendar" class="w-4 h-4 text-indigo-600"></i>
+          <span>대출 기간: 오늘부터 <strong>14일간</strong> (반납예정일 자동 부여)</span>
+        </div>
+
+        <div class="pt-3 flex gap-2 justify-end">
+          <button type="button" onclick="closeModal('borrowModal')" class="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50">취소</button>
+          <button type="submit" id="borrowSubmitBtn" class="px-5 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 flex items-center gap-1.5 shadow-sm">
+            <span>대출 승인</span>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- 모달: 대출/반납 이력 로그 -->
+  <div id="logsModal" class="fixed inset-0 z-50 hidden flex items-center justify-center p-4">
+    <div class="modal-backdrop fixed inset-0" onclick="closeModal('logsModal')"></div>
+    <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl relative z-10 space-y-4 max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div class="flex items-center gap-2 text-indigo-600">
+          <i data-lucide="history" class="w-5 h-5"></i>
+          <h3 class="font-bold text-slate-800 text-lg">대출 및 반납 이력</h3>
+        </div>
+        <button onclick="closeModal('logsModal')" class="text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="overflow-y-auto flex-1 divide-y divide-slate-100" id="logsListContainer">
+        <!-- 이력 항목들 -->
+      </div>
+    </div>
+  </div>
+
+  <!-- 토스트 알림 컨테이너 -->
+  <div id="toastContainer" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+  <!-- JavaScript App Logic -->
+  <script>
+    // GAS Web App URL
+    const GAS_URL = "${gasUrl}";
+
+    // State
+    let allBooks = [];
+    let allMembers = [];
+    let allLogs = [];
+    let currentViewMode = 'grid'; // 'grid' | 'table'
+    let selectedCategory = '전체';
+    let searchQuery = '';
+
+    // Initial Sample Data (초기 로딩 전 또는 GAS 권한 제한 시 데모 모드로 전환)
+    const SAMPLE_BOOKS = [
+      { id: 'BK-001', bookId: 'BK-001', title: '클린 코드 (Clean Code)', author: '로버트 C. 마틴', category: '기술/IT', status: 'borrowed', borrower: '김민준', dueDate: '2026-10-12' },
+      { id: 'BK-002', bookId: 'BK-002', title: '리팩터링 2판', author: '마틴 파울러', category: '기술/IT', status: 'available', borrower: null, dueDate: null },
+      { id: 'BK-003', bookId: 'BK-003', title: '불편한 편의점', author: '김호연', category: '문학/소설', status: 'available', borrower: null, dueDate: null },
+      { id: 'BK-004', bookId: 'BK-004', title: '돈의 심리학', author: '모건 하우절', category: '경제/경영', status: 'borrowed', borrower: '이지은', dueDate: '2026-10-16' },
+      { id: 'BK-005', bookId: 'BK-005', title: '코스모스 (Cosmos)', author: '칼 세이건', category: '자연과학', status: 'available', borrower: null, dueDate: null },
+      { id: 'BK-006', bookId: 'BK-006', title: '사피엔스 (Sapiens)', author: '유발 하라리', category: '인문/역사', status: 'available', borrower: null, dueDate: null },
+      { id: 'BK-007', bookId: 'BK-007', title: '모던 자바스크립트 Deep Dive', author: '이웅모', category: '기술/IT', status: 'borrowed', borrower: '박도현', dueDate: '2026-10-09' },
+      { id: 'BK-008', bookId: 'BK-008', title: '아몬드', author: '손원평', category: '문학/소설', status: 'available', borrower: null, dueDate: null }
+    ];
+
+    const SAMPLE_MEMBERS = [
+      { id: 'M-1', name: '김민준' }, { id: 'M-2', name: '이지은' }, { id: 'M-3', name: '박도현' }, { id: 'M-4', name: '최서연' }
+    ];
+
+    const CATEGORIES = ['전체', '기술/IT', '문학/소설', '인문/역사', '경제/경영', '자연과학', '자기계발', '예술/문화', '기타'];
+
+    // Initialize App
+    window.addEventListener('DOMContentLoaded', () => {
+      renderCategoryChips();
+      fetchData();
+    });
+
+    // Toast Notification System
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = 'pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-xl shadow-lg text-sm font-medium transition-all transform translate-y-2 opacity-0 ' +
+        (type === 'success' ? 'bg-emerald-600 text-white' :
+         type === 'error' ? 'bg-rose-600 text-white' :
+         'bg-slate-800 text-white');
+
+      const icon = type === 'success' ? 'check-circle' : type === 'error' ? 'alert-triangle' : 'info';
+      toast.innerHTML = \`<i data-lucide="\${icon}" class="w-4 h-4 shrink-0"></i><span>\${message}</span>\`;
+      container.appendChild(toast);
+      lucide.createIcons();
+
+      requestAnimationFrame(() => {
+        toast.classList.remove('translate-y-2', 'opacity-0');
+      });
+
+      setTimeout(() => {
+        toast.classList.add('opacity-0', 'translate-y-2');
+        setTimeout(() => toast.remove(), 300);
+      }, 3500);
+    }
+
+    // Modal Control
+    function openModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) {
+        modal.classList.remove('hidden');
+        lucide.createIcons();
+      }
+    }
+
+    function closeModal(id) {
+      const modal = document.getElementById(id);
+      if (modal) modal.classList.add('hidden');
+    }
+
+    // Fetch Data from Google Apps Script
+    async function fetchData() {
+      const refreshIcon = document.getElementById('refreshIcon');
+      refreshIcon?.classList.add('animate-spin');
+      document.getElementById('loadingBox').classList.remove('hidden');
+      document.getElementById('booksGrid').classList.add('hidden');
+      document.getElementById('booksTableWrapper').classList.add('hidden');
+      document.getElementById('emptyBox').classList.add('hidden');
+
+      try {
+        // Parallel requests for books, members, logs
+        const [booksRes, membersRes, logsRes] = await Promise.allSettled([
+          fetch(\`\${GAS_URL}?action=getBooks&_t=\${Date.now()}\`, { redirect: 'follow' }),
+          fetch(\`\${GAS_URL}?action=getMembers&_t=\${Date.now()}\`, { redirect: 'follow' }),
+          fetch(\`\${GAS_URL}?action=getLogs&_t=\${Date.now()}\`, { redirect: 'follow' })
+        ]);
+
+        let loadedBooks = null;
+        let isAuthError = false;
+
+        if (booksRes.status === 'fulfilled') {
+          const text = await booksRes.value.text();
+          if (text.includes('accounts.google.com') || text.includes('需要存取權') || text.includes('<!DOCTYPE html>')) {
+            isAuthError = true;
+          } else {
+            try {
+              const json = JSON.parse(text);
+              loadedBooks = Array.isArray(json) ? json : (json.books || json.data || []);
+            } catch (e) {
+              console.warn('JSON parse error:', e);
+            }
+          }
+        }
+
+        if (isAuthError) {
+          showBanner('구글 시트 웹 앱 권한 안내', 'GAS 웹 앱 권한이 "모든 사용자(Anyone)"로 공개되어 있지 않아 데모 모드로 연결되었습니다. 도서 대출/반납 등 모든 기능은 즉시 정상 작동합니다.');
+          allBooks = [...SAMPLE_BOOKS];
+          allMembers = [...SAMPLE_MEMBERS];
+        } else if (loadedBooks && Array.isArray(loadedBooks) && loadedBooks.length > 0) {
+          allBooks = loadedBooks.map(normalizeBook);
+          showToast('구글 시트와 실시간 연동되었습니다.', 'success');
+        } else {
+          // If empty or initial
+          allBooks = [...SAMPLE_BOOKS];
+          allMembers = [...SAMPLE_MEMBERS];
+        }
+
+        // Process Members
+        if (membersRes.status === 'fulfilled' && !isAuthError) {
+          try {
+            const mText = await membersRes.value.text();
+            const mJson = JSON.parse(mText);
+            const mList = Array.isArray(mJson) ? mJson : (mJson.members || mJson.data || []);
+            if (mList.length > 0) allMembers = mList;
+          } catch(e) {}
+        }
+
+        // Process Logs
+        if (logsRes.status === 'fulfilled' && !isAuthError) {
+          try {
+            const lText = await logsRes.value.text();
+            const lJson = JSON.parse(lText);
+            allLogs = Array.isArray(lJson) ? lJson : (lJson.logs || lJson.data || []);
+          } catch(e) {}
+        }
+
+      } catch (err) {
+        console.warn('GAS Network error, using local data:', err);
+        allBooks = [...SAMPLE_BOOKS];
+        allMembers = [...SAMPLE_MEMBERS];
+        showToast('로컬 모드로 전환되었습니다.', 'info');
+      } finally {
+        refreshIcon?.classList.remove('animate-spin');
+        document.getElementById('loadingBox').classList.add('hidden');
+        updateStats();
+        updateMemberDatalist();
+        renderBooks();
+      }
+    }
+
+    function normalizeBook(item, idx) {
+      const id = String(item.id || item.bookId || item['도서ID'] || \`BK-\${idx + 1}\`);
+      const title = String(item.title || item['제목'] || item['도서명'] || '제목 미상');
+      const author = String(item.author || item['저자'] || item['지은이'] || '저자 미상');
+      const category = String(item.category || item['카테고리'] || item['분류'] || '기타');
+      const statusRaw = String(item.status || item['대출상태'] || item['상태'] || '대출가능').toLowerCase();
+      const isBorrowed = statusRaw === 'borrowed' || statusRaw === '대출중' || statusRaw === '대출' || Boolean(item.borrower);
+      return {
+        id,
+        bookId: id,
+        title,
+        author,
+        category,
+        status: isBorrowed ? 'borrowed' : 'available',
+        borrower: isBorrowed ? (item.borrower || item['대출자'] || '이용자') : null,
+        dueDate: isBorrowed ? (item.dueDate || item['반납예정일'] || null) : null
+      };
+    }
+
+    function showBanner(title, msg) {
+      const banner = document.getElementById('statusBanner');
+      document.getElementById('statusTitle').innerText = title;
+      document.getElementById('statusMessage').innerText = msg;
+      banner.classList.remove('hidden');
+      lucide.createIcons();
+    }
+
+    function updateStats() {
+      const total = allBooks.length;
+      const borrowed = allBooks.filter(b => b.status === 'borrowed').length;
+      const available = total - borrowed;
+      document.getElementById('statTotal').innerText = \`\${total}권\`;
+      document.getElementById('statAvailable').innerText = \`\${available}권\`;
+      document.getElementById('statBorrowed').innerText = \`\${borrowed}권\`;
+      document.getElementById('statMembers').innerText = \`\${allMembers.length}명\`;
+    }
+
+    function updateMemberDatalist() {
+      const datalist = document.getElementById('memberSuggestions');
+      if (!datalist) return;
+      datalist.innerHTML = allMembers.map(m => \`<option value="\${m.name}">\`).join('');
+    }
+
+    function renderCategoryChips() {
+      const container = document.getElementById('categoryChips');
+      container.innerHTML = CATEGORIES.map(cat => {
+        const isSelected = selectedCategory === cat;
+        return \`<button onclick="selectCategory('\${cat}')" class="px-3 py-1.5 rounded-full font-medium transition-colors shrink-0 \${
+          isSelected ? 'bg-indigo-600 text-white' : 'bg-slate-100 hover:bg-slate-200 text-slate-600'
+        }">\${cat}</button>\`;
+      }).join('');
+    }
+
+    function selectCategory(cat) {
+      selectedCategory = cat;
+      renderCategoryChips();
+      renderBooks();
+    }
+
+    function handleSearch() {
+      searchQuery = document.getElementById('searchInput').value.trim().toLowerCase();
+      renderBooks();
+    }
+
+    function setViewMode(mode) {
+      currentViewMode = mode;
+      const gridBtn = document.getElementById('viewGridBtn');
+      const tableBtn = document.getElementById('viewTableBtn');
+
+      if (mode === 'grid') {
+        gridBtn.className = 'p-1.5 rounded text-indigo-600 bg-white shadow-xs';
+        tableBtn.className = 'p-1.5 rounded text-slate-500 hover:text-slate-800';
+      } else {
+        tableBtn.className = 'p-1.5 rounded text-indigo-600 bg-white shadow-xs';
+        gridBtn.className = 'p-1.5 rounded text-slate-500 hover:text-slate-800';
+      }
+      renderBooks();
+    }
+
+    function renderBooks() {
+      const statusFilter = document.getElementById('statusFilter').value;
+      const filtered = allBooks.filter(book => {
+        const matchCategory = selectedCategory === '전체' || book.category === selectedCategory;
+        const matchStatus = statusFilter === 'all' || book.status === statusFilter;
+        const matchSearch = !searchQuery ||
+          book.title.toLowerCase().includes(searchQuery) ||
+          book.author.toLowerCase().includes(searchQuery) ||
+          (book.bookId && book.bookId.toLowerCase().includes(searchQuery));
+        return matchCategory && matchStatus && matchSearch;
+      });
+
+      const gridEl = document.getElementById('booksGrid');
+      const tableWrapper = document.getElementById('booksTableWrapper');
+      const emptyEl = document.getElementById('emptyBox');
+
+      if (filtered.length === 0) {
+        gridEl.classList.add('hidden');
+        tableWrapper.classList.add('hidden');
+        emptyEl.classList.remove('hidden');
+        lucide.createIcons();
+        return;
+      }
+
+      emptyEl.classList.add('hidden');
+
+      if (currentViewMode === 'grid') {
+        tableWrapper.classList.add('hidden');
+        gridEl.classList.remove('hidden');
+        gridEl.innerHTML = filtered.map(renderBookCard).join('');
+      } else {
+        gridEl.classList.add('hidden');
+        tableWrapper.classList.remove('hidden');
+        const tbody = document.getElementById('booksTableBody');
+        tbody.innerHTML = filtered.map(renderBookRow).join('');
+      }
+      lucide.createIcons();
+    }
+
+    function renderBookCard(book) {
+      const isAvailable = book.status === 'available';
+      const statusBadge = isAvailable
+        ? '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>대출 가능</span>'
+        : '<span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>대출 중</span>';
+
+      const actionButton = isAvailable
+        ? \`<button onclick="openBorrowModal('\${book.id}')" class="w-full py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 shadow-xs transition-colors">
+            <i data-lucide="book-open" class="w-3.5 h-3.5"></i> 대출하기
+          </button>\`
+        : \`<button onclick="confirmReturn('\${book.id}')" class="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 border border-slate-200 transition-colors">
+            <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-slate-500"></i> 반납하기
+          </button>\`;
+
+      return \`
+        <div class="bg-white rounded-xl border border-slate-200 p-4 shadow-xs hover:shadow-md transition-shadow flex flex-col justify-between space-y-3">
+          <div>
+            <div class="flex items-start justify-between gap-2 mb-2">
+              <span class="text-[11px] font-medium px-2 py-0.5 rounded bg-slate-100 text-slate-600">\${book.category}</span>
+              \${statusBadge}
+            </div>
+            <h3 class="font-bold text-slate-900 text-sm line-clamp-1 title="\${book.title}">\${book.title}</h3>
+            <p class="text-xs text-slate-500 mt-0.5">\${book.author}</p>
+          </div>
+
+          <div class="pt-2 border-t border-slate-100 text-xs space-y-1">
+            <div class="flex justify-between text-slate-500">
+              <span>도서 번호</span>
+              <span class="font-mono text-slate-700">\${book.id}</span>
+            </div>
+            \${!isAvailable && book.borrower ? \`
+              <div class="flex justify-between text-slate-500">
+                <span>대출자</span>
+                <span class="font-medium text-slate-800">\${book.borrower}</span>
+              </div>
+              <div class="flex justify-between text-slate-500">
+                <span>반납예정일</span>
+                <span class="font-semibold text-amber-600">\${book.dueDate || '미정'}</span>
+              </div>
+            \` : ''}
+          </div>
+
+          \${actionButton}
+        </div>
+      \`;
+    }
+
+    function renderBookRow(book) {
+      const isAvailable = book.status === 'available';
+      const statusBadge = isAvailable
+        ? '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"><span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>대출 가능</span>'
+        : '<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>대출 중</span>';
+
+      const actionBtn = isAvailable
+        ? \`<button onclick="openBorrowModal('\${book.id}')" class="px-3 py-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-md text-xs font-medium">대출하기</button>\`
+        : \`<button onclick="confirmReturn('\${book.id}')" class="px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md text-xs font-medium border border-slate-200">반납하기</button>\`;
+
+      return \`
+        <tr class="hover:bg-slate-50/50">
+          <td class="py-3 px-4 font-mono text-xs text-slate-500">\${book.id}</td>
+          <td class="py-3 px-4 font-semibold text-slate-900">\${book.title}</td>
+          <td class="py-3 px-4 text-slate-600">\${book.author}</td>
+          <td class="py-3 px-4"><span class="px-2 py-0.5 bg-slate-100 rounded text-xs text-slate-600">\${book.category}</span></td>
+          <td class="py-3 px-4">\${statusBadge}</td>
+          <td class="py-3 px-4 text-slate-700">\${book.borrower || '-'}</td>
+          <td class="py-3 px-4 text-slate-700">\${book.dueDate || '-'}</td>
+          <td class="py-3 px-4 text-right">\${actionBtn}</td>
+        </tr>
+      \`;
+    }
+
+    // Modal: Open Borrow Modal
+    function openBorrowModal(bookId) {
+      const book = allBooks.find(b => b.id === bookId);
+      if (!book) return;
+      document.getElementById('borrowBookId').value = book.id;
+      document.getElementById('borrowModalBookTitle').innerText = book.title;
+      document.getElementById('borrowModalBookAuthor').innerText = \`\${book.author} | \${book.category}\`;
+      document.getElementById('borrowMemberName').value = '';
+      openModal('borrowModal');
+    }
+
+    // Submit Add Book (POST)
+    async function submitAddBook(e) {
+      e.preventDefault();
+      const title = document.getElementById('newTitle').value.trim();
+      const author = document.getElementById('newAuthor').value.trim();
+      const category = document.getElementById('newCategory').value;
+
+      if (!title || !author) return;
+
+      const submitBtn = document.getElementById('addSubmitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>등록 중...</span>';
+
+      const payload = { title, author, category };
+      let isGasSaved = false;
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'addBook', payload }),
+          redirect: 'follow'
+        });
+        const text = await res.text();
+        if (text.includes('accounts.google.com') || text.includes('需要存取權') || text.includes('<!DOCTYPE html>')) {
+          showBanner('⚠️ 구글 시트 저장 실패 (권한 설정 필요)', 'Google Apps Script 배포 설정에서 "액세스 권한: 모든 사용자(Anyone)"로 공개되어 있어야 스프레드시트에 저장됩니다. 현재 권한 차단으로 로컬에만 임시 표시됩니다.');
+        } else {
+          isGasSaved = true;
+        }
+      } catch (err) {
+        console.warn('POST addBook error:', err);
+        showBanner('⚠️ 구글 시트 전송 실패', '네트워크 또는 CORS 오류로 시트에 반영되지 못했습니다.');
+      }
+
+      // Optimistic update
+      const newBook = {
+        id: \`BK-\${String(allBooks.length + 1).padStart(3, '0')}\`,
+        bookId: \`BK-\${String(allBooks.length + 1).padStart(3, '0')}\`,
+        title,
+        author,
+        category,
+        status: 'available',
+        borrower: null,
+        dueDate: null
+      };
+      allBooks.unshift(newBook);
+
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<span>등록하기</span>';
+      closeModal('addModal');
+      document.getElementById('addBookForm').reset();
+      updateStats();
+      renderBooks();
+      if (isGasSaved) {
+        showToast(\`'\${title}' 도서가 구글 시트에 저장되었습니다.\`, 'success');
+      } else {
+        showToast(\`구글 시트 저장 실패 (권한 필요). 화면에만 임시 표시됩니다.\`, 'error');
+      }
+    }
+
+    // Submit Borrow (POST)
+    async function submitBorrow(e) {
+      e.preventDefault();
+      const bookId = document.getElementById('borrowBookId').value;
+      const memberName = document.getElementById('borrowMemberName').value.trim();
+      if (!bookId || !memberName) return;
+
+      const submitBtn = document.getElementById('borrowSubmitBtn');
+      submitBtn.disabled = true;
+      submitBtn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div><span>처리 중...</span>';
+
+      const payload = { bookId, memberName };
+      let isGasSaved = false;
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'borrowBook', payload }),
+          redirect: 'follow'
+        });
+        const text = await res.text();
+        if (text.includes('accounts.google.com') || text.includes('需要存取權') || text.includes('<!DOCTYPE html>')) {
+          showBanner('⚠️ 구글 시트에 대출이 반영되지 않았습니다', 'Google Apps Script 배포 설정에서 "액세스 권한: 모든 사용자(Anyone)"로 공개되어 있어야 스프레드시트에 저장됩니다.');
+        } else {
+          isGasSaved = true;
+        }
+      } catch (err) {
+        console.warn('POST borrowBook error:', err);
+        showBanner('⚠️ 구글 시트 전송 실패', '네트워크 또는 CORS 오류로 시트에 반영되지 못했습니다.');
+      }
+
+      // Optimistic update
+      const target = allBooks.find(b => b.id === bookId);
+      if (target) {
+        const due = new Date();
+        due.setDate(due.getDate() + 14);
+        target.status = 'borrowed';
+        target.borrower = memberName;
+        target.dueDate = due.toISOString().split('T')[0];
+
+        // Add log
+        allLogs.unshift({
+          id: \`LOG-\${Date.now()}\`,
+          bookTitle: target.title,
+          memberName: memberName,
+          action: 'borrow',
+          timestamp: new Date().toLocaleString()
+        });
+      }
+
+      submitBtn.disabled = false;
+      submitBtn.innerHTML = '<span>대출 승인</span>';
+      closeModal('borrowModal');
+      updateStats();
+      renderBooks();
+
+      if (isGasSaved) {
+        showToast(\`'\${target?.title}' 도서가 구글 시트에 대출 처리되었습니다.\`, 'success');
+      } else {
+        showToast(\`구글 시트 저장 실패 (권한 필요). 화면에만 임시 표시됩니다.\`, 'error');
+      }
+    }
+
+    // Confirm Return (POST)
+    async function confirmReturn(bookId) {
+      const book = allBooks.find(b => b.id === bookId);
+      if (!book) return;
+      if (!confirm(\`'\${book.title}' 도서를 반납 처리하시겠습니까?\`)) return;
+
+      const borrower = book.borrower || '이용자';
+      showToast('반납 처리 중입니다...', 'info');
+
+      let isGasSaved = false;
+      try {
+        const res = await fetch(GAS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify({ action: 'returnBook', payload: { bookId } }),
+          redirect: 'follow'
+        });
+        const text = await res.text();
+        if (text.includes('accounts.google.com') || text.includes('需要存取權') || text.includes('<!DOCTYPE html>')) {
+          showBanner('⚠️ 구글 시트에 반납이 반영되지 않았습니다', 'Google Apps Script 배포 설정에서 "액세스 권한: 모든 사용자(Anyone)" 설정이 필요합니다.');
+        } else {
+          isGasSaved = true;
+        }
+      } catch (err) {
+        console.warn('POST returnBook error:', err);
+      }
+
+      // Optimistic update
+      book.status = 'available';
+      book.borrower = null;
+      book.dueDate = null;
+
+      // Add log
+      allLogs.unshift({
+        id: \`LOG-\${Date.now()}\`,
+        bookTitle: book.title,
+        memberName: borrower,
+        action: 'return',
+        timestamp: new Date().toLocaleString()
+      });
+
+      updateStats();
+      renderBooks();
+
+      if (isGasSaved) {
+        showToast(\`'\${book.title}' 도서가 구글 시트에 반납 처리되었습니다.\`, 'success');
+      } else {
+        showToast(\`구글 시트 저장 실패 (권한 필요). 화면에만 임시 표시됩니다.\`, 'error');
+      }
+    }
+  </script>
+</body>
+</html>`;
+}

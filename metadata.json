@@ -1,0 +1,6 @@
+{
+  "name": "모던 스마트 도서관 관리 시스템",
+  "description": "구글 시트(GAS)와 실시간 연동되는 모던 도서관 관리 시스템. 도서 목록 검색, 신규 도서 등록, 도서 대출 및 반납, 이력 조회 기능을 제공합니다.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
